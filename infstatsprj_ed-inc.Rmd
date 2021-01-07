@@ -1,0 +1,217 @@
+---
+title: "Family Income between Bachelor's and Graduate Degree Owners"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+
+
+```{r load-data}
+load("gss.Rdata")
+```
+
+
+
+* * *
+
+## Part 1: Data
+
+### 1.1 Introduction to Data
+
+The Data is a Coursera extract from the General Social Suvey (GSS). Data can be loaded to R using this url: *https://bit.ly/3hP3aEa* as run on the setup stage of the R markdown, and the codebook url: *https://bit.ly/2Ltf6zm*. **Note that these urls may expire due to changes in Coursera system or in the course itself.**
+
+The GSS survey is the primary source of data. In this, the Data collected by face-to-face random selection of every household of adults residents of the United States. This data collection is repeated yearly since 1972 with some exceptions.
+
+The data collection is observational, where it is done at the individual level of observation and each data is an individual response of the survey. Since it is a random survey, the population is not influenced compared to an experiment. The variables are data from the individual life of each subject, they aren't data that can be modified or influenced using an experimental design. As of 2010, the extracted data from the survey is done on random individuals from random 28 nations on US, where we can consider it a cluster sample and we can generalize the results to the US entire population.
+
+In this statistical analysis, the two variables to be utilized are:
+
+1. **degree**: (Categorical variable) It is the identifier of the respondents' highest degree obtained that is where their highest educational attainment is...
+    + Less than High School
+    + High school, or
+    + Junior College, or
+    + Bachelor's degree, or
+    + Graduate degree.
+
+2. **coninc**: (Numerical Variable) This characterizes the family income of the respondents i.e., inflation-adjusted. This would provide accurate analysis such that the survey data across time of years would be adjusted of the unstable impact of inflation to income. 
+
+### 1.2 Scope(s) of Inference
+
+Since the survey is conducted by random sampling, the results from this statistical analysis project can be generalized to the entire US population. However, the statistical tests performed cannot provide causality relationships between the variables of interest since the study is not of the experimental type.
+
+### 1.3 Data Cleaning
+
+#### 1.3.1 Data Selection and Filtering
+
+In the following code, only the *degree* and *coinc* variables will be selected; observations in degree other than *bachelor* and *graduate* will be filtered out; and the missing values from the collected data will be removed.
+
+```{r Data Sorting and Filtering, warning=FALSE}
+gss %>%
+  filter(!is.na(degree) & !is.na(coninc) & 
+           (degree == "Bachelor" | degree == "Graduate")) %>%
+  select(degree,coninc) -> dat_deg_inc
+dim(dat_deg_inc)
+```
+
+The dataset is reduced to $10940$ records from the total $57061$ records. 
+
+#### 1.3.2  Data Categorization
+
+Setting *degree* as the categorical factor in the data
+
+```{r Data Categorization, warning=FALSE}
+dat_deg_inc$degree <- as.factor(dat_deg_inc$degree)
+```
+
+* * *
+
+## Part 2: Research question
+
+It is an ongoing question if having a Graduate degree provides more family income than a Bachelor's degree. The stratified perception of education seemed Graduate degree owners to be favorably paid more by most US companies than Bachelor's degree owners. As a side note, other extraneous factors may affect the analysis's accuracy - such as their specific college degree.  Presumably, the comparison of the population of both with the highest degree attained of Graduate degree and Bachelor's degree to their family income in general and drawing statistical inference could help understand the occurring relationship.
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+### 3.1 Sample Level and Sizes
+
+In this, we determine the levels and sample size of each highest attained degree.
+
+```{r Sample levels and sizes}
+table(dat_deg_inc$degree)
+```
+
+In the data, all are *greater than 30 samples* which provides ease of data analysis due to assumptions in inferential statistics. 
+
+### 3.2 Distribution Analysis of Data
+
+```{r Distribution Analysis}
+ggplot(data = dat_deg_inc, aes(x = coninc)) + 
+  geom_histogram(binwidth = 2000, fill = "gray", colour = "black") + facet_wrap(~degree)
+```
+
+*Observations:* Both the Bachelor and Graduate groups have a right-skewed distribution, although it is more pronounced in the Bachelor group.
+
+
+### 3.3 Descriptive Statistics
+
+```{r Descriptive Statistics, message=FALSE, warning=FALSE}
+dat_deg_inc %>% select(coninc, degree) %>% group_by(degree) %>% 
+  summarise(n = n(), 
+            mean = mean(coninc), 
+            sd = sd(coninc),
+            stderr = sd/sqrt(n), 
+            LCL = mean - qt(1 - (0.05 / 2), n - 1) * stderr,
+            UCL = mean + qt(1 - (0.05 / 2), n - 1) * stderr,
+            median = median(coninc),
+            min = min(coninc), 
+            max = max(coninc),
+            IQR = IQR(coninc))
+```
+
+*Observations:* 
+
+1. The confidence interval at 95% confidence level of the mean inflation-adjusted family income of the Bachelor group is $[\$63066,\$64960]$ and the Graduate group is $[\$76663,\$79603]$.
+
+2. There is seemingly large differences to the mean inflation-adjusted family income between the Bachelor group and the Graduate group. To assess the significance of the difference between the group's inflation-adjusted family income, inferential statistics should be accomplished.
+
+* * *
+
+## Part 4: Inference
+
+### 4.1 State Hypotheses
+
+**Null hypothesis:** The population mean of total family income with inflation correction is same for people with highest attained college degree of Bachelor's degree and Graduate degree.
+$$ H_0: \mu_{bachelor} = \mu_{graduate} $$
+**Alternative hypothesis:** The population mean of total family income with inflation correction  for people with highest attained college degree of Graduate degree is higher than those with Bachelor's degree.
+$$ H_A: \mu_{bachelor} < \mu_{graduate} $$
+As we have 2 groups of highest educational attainment selected, Student's t-test is the right test to be conducted. In this, the assessment is that one-sided where the population mean of family income of Graduate degree owners has greater value than that of the Bachelor's degree owners. Hence, one-sided independent-samples t-test should be utilized. Although, we need to check if the necessary conditions to perform t-test are satisfied or not.
+
+### 4.2 Check Conditions
+
+#### 4.2.1 Independence
+
+The provided GSS dataset is generated from a random sample survey. Hence, it can be assumed that the records are independent across groups.
+
+#### 4.2.2 Normality
+
+To analyze the normality of the distributions, we can explore the quantile-quantile plot.
+
+```{r Q-Q Plots for Normality Checking, warning=FALSE}
+# Setting Graphical Parameters to form 2 graphs in 1 rows
+par(mfrow = c(1,2))
+
+# Iterate on 2 groups and graph a Q-Q plot to test normality
+deg_grp = c("Bachelor","Graduate")
+for (i in 1:2) {
+comp = dat_deg_inc %>% filter(degree == deg_grp[i])  
+qqnorm(comp$coninc, pch = 1, main = deg_grp[i])
+qqline(comp$coninc, lwd = 2)
+}
+```
+
+*Observations:* There is a significant deviation from standard normal distribution in Bachelor and Graduate groups especially in the upper quantile. This mirrors the shown right-skewed distributions observed in the histogram plots in *Section 3.2*. 
+
+#### 4.2.3 Variability
+
+The variability across the groups needs to be about equal. 
+
+```{r Box Plots for Variability Checking}
+ggplot(data = dat_deg_inc, aes(x = degree,y = coninc)) + geom_boxplot(aes(fill = degree))
+```
+
+*Observations:* The variability between the Bachelor group and Graduate group varies significantly in their inter-quartile range. We observe the median for Graduate group is much higher than that of the Bachelor group.
+
+#### 4.2.4 Conclusion to Condition Analysis for Inference
+
+Based on the above observations, the conditions for performing t-test are **not fully** satisfied. Hence, it should be in mind to be cautious in the interpretation of the results of t-test. Moreover, there might be external factors outside of highest attained education that might be strongly correlated with income, such as citizenship, race, gender, and what not.
+
+### 4.3 Statistical Analysis using Student's t-test
+
+#### 4.3.1 Test for Homogeneity of Variance
+
+Bartlett’s test is used to test if k samples are from populations with equal variances. Equal variances across populations are called *homoscedasticity* or homogeneity of variances. Since t-test assume that variances are equal across groups or samples, the Bartlett's test can be used to verify that assumption. This test enables the comparison of the variance of two or more samples to decide whether they are drawn from populations with equal variance. 
+
+For Bartlett’s test, the statistical hypotheses relevant to the analysis are:
+
+**Null Hypothesis:** There is equal populations variances between the Bachelor group and Graduate group
+$$ H_0: \sigma_{bachelor} = \sigma_{graduate} $$
+
+**Alternative Hypothesis:** There is unequal populations variances between the Bachelor group and Graduate group
+$$ H_A: \sigma_{bachelor} ≠ \sigma_{graduate} $$
+
+To assess the difference of variance between two groups, the following code will results to the hypothesis test:
+
+```{r Variance Homogeneity Test}
+bartlett.test(coninc ~ degree, data = dat_deg_inc)
+```
+
+*Observations:* From the output, the p-value of $1.039*10^{-07}$ is significantly less than the significance level of $0.05$. This means the null hypothesis is to be rejected, that the variance is unequal for all treatment groups. This concludes that there is certain proof to recommend that the variance in inflation-adjusted family income is different between the Bachelor group and Graduate group.
+
+#### 4.3.2 T-test
+
+To assess the significance of the difference of inflation-adjusted family income between the Bachelor group and Graduate group, the following code will result to the hypothesis test shown in *Section 4.1*.
+
+```{r Statistical Test}
+t.test(coninc ~ degree, data = dat_deg_inc, alternative = "less", conf.level = 0.95, var.equal = FALSE)
+```
+
+From the above result, the t-test value indicates the observed difference is $15.834$ standard deviations away from the left of the mean in the null hypothesis. Clearly, with the p-value $<<$ $0.05$, we have convincing evidence that the inflation-adjusted family income of Bachelor's degree owners is less than that of Graduate degree owners in the U.S.
+
+# Part 5: Findings
+
+In the exploratory data analysis phase, it is observed that the inflation-adjusted family income of Graduate degree owners is consistently higher than the corresponding Bachelor's degree owner. Through statistical test of two independent samples t-test, with a p-value of almost zero, we have strong evidence to reject the null hypothesis. Although, to be taken into account is that there are some significant inferential statistics assumptions that have been disregarded. Hence, we have evidence to state that having Graduate degree or Bachelor's degree as the highest educational attainment and the family income are dependent in the U.S, yet there are other variables still to be considered for stronger evidence.
